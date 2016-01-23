@@ -24,7 +24,7 @@ const (
 
 type Drystone struct {
 	CURL  string // client url
-	SURL  string // internal url
+	SURL  string // stone url
 	WURLS  []string // wall urls list
 	nm    string // name
 	HeartBeatQuit chan bool
@@ -81,7 +81,9 @@ func (stone *Drystone) run() {
 // send other known stones heartbeat
 func (stone *Drystone) updateWallUrls(){
 	for _,u:=range stone.WURLS {
-		stone.updateWallUrlHttp(u, stone.SURL)
+		if u!=stone.SURL{
+			stone.updateWallUrlHttp(u, stone.SURL)
+		}
 	}
 } 
 
@@ -95,9 +97,9 @@ func (stone *Drystone) heartBeat() {
 			log.Printf("stone.heartBeat exited by HeartBeatQuit %s %d",stone.nm, counter)
 			return
 		case <-tick:
-			log.Printf("stone.heartBeat tick %s %d", stone.nm, counter)
+			//log.Printf("stone.heartBeat tick %s %d", stone.nm, counter)
 			counter++
-			stone.updateWallUrls()
+			//stone.updateWallUrls()
 		}
 	}
 
@@ -106,7 +108,9 @@ func (stone *Drystone) heartBeat() {
 
 func (stone *Drystone) addGlobal(g, k string, d []byte) (od []byte){
 	for _,u:=range stone.WURLS {
-		od=stone.addStoneHttp(u,g,k,d)
+		if u!=stone.SURL{
+			od=stone.addStoneHttp(u,g,k,d)
+		}	
 	}
 	return od
 }
@@ -131,7 +135,9 @@ func (stone *Drystone) addLocal(g, k string, d []byte) []byte{
 
 func (stone *Drystone) getGlobal(g, k string) (d []byte) {
 	for _,u:=range stone.WURLS {
-		d=stone.getStoneHttp(u,g,k)
+		if u!=stone.SURL{
+			d=stone.getStoneHttp(u,g,k)
+		}	
 	}
 	return d
 }
@@ -154,7 +160,9 @@ func (stone *Drystone) getLocal(g, k string) []byte {
 
 func (stone *Drystone) delGlobal(g, k string) (d []byte) {
 	for _,u:=range stone.WURLS {
-		d=stone.delStoneHttp(u,g,k)
+		if u!=stone.SURL{
+			d=stone.delStoneHttp(u,g,k)
+		}
 	}
 	return d
 }

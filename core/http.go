@@ -27,11 +27,12 @@ func (stone *Drystone) updateWallUrlHttp(u,me string){
 		return
 	}
 
-	client := &http.Client{}
-	_, err = client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("stone.addStoneHttp client.Do url %s error %v", url,err)
+		return
 	}
+	resp.Body.Close()
 
 }
 /*
@@ -85,12 +86,17 @@ func (stone *Drystone) addStoneHttp(u,g,k string, d []byte)([]byte){
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	defer func(){
+		if resp!=nil && resp.Body!=nil{
+			resp.Body.Close()
+		}
+	}()
 	if err != nil {
 		log.Printf("stone.addStoneHttp client.Do url %s error %v", url,err)
 		return nil
 	}
-
 	od, err := ioutil.ReadAll(resp.Body)
+
 	if err != nil {
 		log.Printf("stone.addStoneHttp ioutil.ReadAll url %s error %v", url,err)
 		return nil
@@ -105,22 +111,17 @@ func (stone *Drystone) addStoneHttp(u,g,k string, d []byte)([]byte){
 func (stone *Drystone) getStoneHttp(u,g,k string)([]byte){
 
 	url:="http://"+u+"/stone?g="+url.QueryEscape(g)+"&k="+url.QueryEscape(k)
-	req, err := http.NewRequest("GET", url, nil)
+	resp, err := http.Get(url)
+	defer func(){
+		if resp!=nil && resp.Body!=nil{
+			resp.Body.Close()
+		}
+	}()
 	if err != nil {
 		log.Printf("stone.getStoneHttp NewRequest url %s error %v", url,err)
 		return nil
 	}
-
-	//req.Header[k] = v
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("stone.getStoneHttp client.Do url %s error %v", url,err)
-		return nil
-	}
-
-	d, err := ioutil.ReadAll(resp.Body)
+    d, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("stone.getStoneHttp ioutil.ReadAll url %s error %v", url,err)
 		return nil
@@ -142,6 +143,12 @@ func (stone *Drystone) delStoneHttp(u,g,k string)([]byte){
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	defer func(){
+		if resp!=nil && resp.Body!=nil{
+			resp.Body.Close()
+		}
+	}()
+
 	if err != nil {
 		log.Printf("stone.delStoneHttp client.Do url %s error %v", url,err)
 		return nil
@@ -172,7 +179,7 @@ func getParamsFromRequest(r *http.Request) (g, k string) {
 
 func (stone *Drystone) processPostRequest(w *http.ResponseWriter, r *http.Request, stOk bool) {
 	g, k := getParamsFromRequest(r)
-	log.Printf("stone post [%s] g=%s k=%s", stone.nm, g, k)
+	log.Printf("stone post [%s] g=%s k=%s st=%t", stone.nm, g, k, stOk)
 	if g == "" || k == "" {
 		http.Error(*w, "bad reguest", http.StatusBadRequest)
 		return
@@ -186,7 +193,7 @@ func (stone *Drystone) processPostRequest(w *http.ResponseWriter, r *http.Reques
 
 	od:=stone.addLocal(g, k, d)
 
-	if stOk {
+	if !stOk {
 		go stone.addGlobal(g, k, d)
 	}
 
@@ -198,7 +205,7 @@ func (stone *Drystone) processPostRequest(w *http.ResponseWriter, r *http.Reques
 
 func (stone *Drystone) processGetRequest(w *http.ResponseWriter, r *http.Request, stOk bool){
 	g, k := getParamsFromRequest(r)
-	log.Printf("stone get [%s] g=%s k=%s", stone.nm, g, k)
+	log.Printf("stone get [%s] g=%s k=%s st=%t", stone.nm, g, k, stOk)
 	if g == "" || k == "" {
 		http.Error(*w, "bad reguest", http.StatusBadRequest)
 		return
@@ -206,7 +213,7 @@ func (stone *Drystone) processGetRequest(w *http.ResponseWriter, r *http.Request
 
 	var od []byte
 
-	if stOk {
+	if !stOk {
 		od=stone.getGlobal(g, k)
 	} else {
 		od=stone.getLocal(g, k)
@@ -224,7 +231,7 @@ func (stone *Drystone) processGetRequest(w *http.ResponseWriter, r *http.Request
 
 func (stone *Drystone) processDeleteRequest(w *http.ResponseWriter, r *http.Request, stOk bool) {
 	g, k := getParamsFromRequest(r)
-	log.Printf("stone delete [%s] g=%s k=%s", stone.nm, g, k)
+	log.Printf("stone delete [%s] g=%s k=%s st=%t", stone.nm, g, k, stOk)
 	if g == "" || k == "" {
 		http.Error(*w, "bad reguest", http.StatusBadRequest)
 		return
@@ -232,7 +239,7 @@ func (stone *Drystone) processDeleteRequest(w *http.ResponseWriter, r *http.Requ
 
 	var od []byte
 
-	if stOk {
+	if !stOk {
 		od=stone.delGlobal(g, k)
 	} else{
 		od=stone.delLocal(g, k)
