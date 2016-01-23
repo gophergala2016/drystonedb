@@ -8,24 +8,34 @@ import (
 
 )
 
-type DrystoneNode struct {
+type Drystone struct {
 	URL string
 	data map[string][]byte
 }
 
-func NewDrystoneNode()(node *DrystoneNode){
-	log.Println("NewDrystoneNode")
-	node =&DrystoneNode{
+func NewDrystone()(node *Drystone){
+	log.Println("NewDrystone")
+	stone = &Drystone{
 		data:	make(map[string][]byte),
 	}
 
-	return node
+	go stone.run()
+
+	return stone
 }
 
 
 type DrystoneHttp struct {
-	node *DrystoneNode
+	stone *Drystone
 }
+
+func (stone *Drystone) run() {
+	log.Printf("Drystone run %s",stone.URL)
+
+	go worker.serveWorkerResultsHTTP()
+
+}
+
 
 func (e *DrystoneHttp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("WorkerHttp.ServeHTTP: %s %s %s", r.RemoteAddr, r.Method, r.URL)
@@ -33,8 +43,8 @@ func (e *DrystoneHttp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "bad reguest", http.StatusBadRequest)
 }
 
-func (node *DrystoneNode) serveWorkerResultsHTTP() {
-	err := http.ListenAndServe(node.URL, &DrystoneHttp{node: node})
+func (stone *Drystone) serveWorkerResultsHTTP() {
+	err := http.ListenAndServe(stone.URL, &DrystoneHttp{stone: stone})
 	if err != nil {
 		log.Fatal("node.serveWorkerResultsHTTP error", err)
 	}
