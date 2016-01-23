@@ -8,13 +8,14 @@ import (
 	_ "net/url"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Drystone struct {
 	CURL  string
 	SURL  string
 	nm    string
-	data  map[string]map[string]DataStone
+	data  map[string]map[string]*DataStone
 	daMux sync.Mutex // one mux for all, not perfect but...
 }
 
@@ -28,7 +29,7 @@ func NewDrystone(curl *string, surl *string, hosts *string) (stone *Drystone) {
 	stone = &Drystone{
 		CURL: *curl,
 		SURL: *surl,
-		data: make(map[string]map[string]DataStone),
+		data: make(map[string]map[string]*DataStone),
 	}
 
 	stone.name()
@@ -60,20 +61,49 @@ func (stone *Drystone) run() {
 
 }
 
-func (stone *Drystone) add(g, k string, d []byte) {
+func (stone *Drystone) addLocal(g, k string, d []byte) []byte{
 	stone.daMux.Lock()
 	defer stone.daMux.Unlock()
+	var ok bool
+	var gd map[string]*DataStone 
+	var od []byte
+	var v uint32
+	if gd, ok = stone.data[g]; !ok {
+		gd = make(map[string]*DataStone)
+		stone.data[g]=gd
+	} else {
+		v=gd[k].v+1
+		od=gd[k].d
+	}
+	gd[k]=&DataStone{t:uint32(time.Now().Unix()),v:v,d:d}
+	return od
 }
 
-func (stone *Drystone) get(g, k string) []byte {
+func (stone *Drystone) getLocal(g, k string) []byte {
 	stone.daMux.Lock()
 	defer stone.daMux.Unlock()
-	return nil
+	var ok bool
+	var gd map[string]*DataStone 
+	var od []byte
+	//var v uint32
+	if gd, ok = stone.data[g]; ok {
+		od=gd[k].d
+	}
+	return od
 }
 
-func (stone *Drystone) del(g, k string) {
+func (stone *Drystone) delLocal(g, k string) []byte{
 	stone.daMux.Lock()
 	defer stone.daMux.Unlock()
+	var ok bool
+	var gd map[string]*DataStone 
+	var od []byte
+	//var v uint32
+	if gd, ok = stone.data[g]; ok {
+		od=gd[k].d
+		delete(gd,k)
+	}
+	return od
 }
 
 // stone k/v interface
@@ -91,6 +121,7 @@ func getParamsFromRequest(r *http.Request) (g, k string) {
 
 func (stone *Drystone) processClientPostRequest(w *http.ResponseWriter, r *http.Request) {
 	g, k := getParamsFromRequest(r)
+	log.Printf("Clientstone post [%s] g=%s k=%s", stone.nm, g, k)
 	if g == "" || k == "" {
 		http.Error(*w, "bad reguest", http.StatusBadRequest)
 		return
@@ -101,25 +132,52 @@ func (stone *Drystone) processClientPostRequest(w *http.ResponseWriter, r *http.
 		return
 	}
 
-	stone.add(g, k, d)
+	od:=stone.addLocal(g, k, d)
 
-	log.Printf("Clientstone post [%s] g=%s k=%s", stone.nm, g, k)
 	(*w).WriteHeader(http.StatusOK)
-	(*w).Write([]byte(fmt.Sprintf("boom!!! [%s] g=%s k=%s\n", stone.nm, g, k)))
+	if od!=nil{
+		(*w).Write(od)
+	}
 }
 
 func (stone *Drystone) processClientGetRequest(w *http.ResponseWriter, r *http.Request) {
 	g, k := getParamsFromRequest(r)
 	log.Printf("Clientstone get [%s] g=%s k=%s", stone.nm, g, k)
+	if g == "" || k == "" {
+		http.Error(*w, "bad reguest", http.StatusBadRequest)
+		return
+	}
+
+	od:=stone.getLocal(g, k)
+
+
 	(*w).WriteHeader(http.StatusOK)
-	(*w).Write([]byte(fmt.Sprintf("boom!!! [%s] g=%s k=%s\n", stone.nm, g, k)))
+
+	if od!=nil{
+		(*w).WriteHeader(http.StatusOK)
+		(*w).Write(od)
+	} else {
+		(*w).WriteHeader(http.StatusNotFound)
+	}
 }
 
 func (stone *Drystone) processClientDeleteRequest(w *http.ResponseWriter, r *http.Request) {
 	g, k := getParamsFromRequest(r)
 	log.Printf("Clientstone delete [%s] g=%s k=%s", stone.nm, g, k)
-	(*w).WriteHeader(http.StatusOK)
-	(*w).Write([]byte(fmt.Sprintf("boom!!! [%s] g=%s k=%s\n", stone.nm, g, k)))
+	if g == "" || k == "" {
+		http.Error(*w, "bad reguest", http.StatusBadRequest)
+		return
+	}
+
+
+	od:=stone.delLocal(g, k)
+	
+	if od!=nil{
+		(*w).WriteHeader(http.StatusOK)
+		(*w).Write(od)
+	} else {
+		(*w).WriteHeader(http.StatusNotFound)
+	}
 }
 
 func (stone *Drystone) processStonePostRequest(w *http.ResponseWriter, r *http.Request) {
