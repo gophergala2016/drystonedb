@@ -85,10 +85,13 @@ func (stone *Drystone) getLocal(g, k string) []byte {
 	var ok bool
 	var gd map[string]*DataStone 
 	var od []byte
-	//var v uint32
-	if gd, ok = stone.data[g]; ok {
-		od=gd[k].d
+	if gd, ok = stone.data[g]; !ok {
+		return nil
 	}
+	if _, ok = gd[k]; !ok {
+		return nil
+	}
+	od=gd[k].d
 	return od
 }
 
@@ -98,11 +101,14 @@ func (stone *Drystone) delLocal(g, k string) []byte{
 	var ok bool
 	var gd map[string]*DataStone 
 	var od []byte
-	//var v uint32
-	if gd, ok = stone.data[g]; ok {
-		od=gd[k].d
-		delete(gd,k)
+	if gd, ok = stone.data[g]; !ok {
+		return nil
 	}
+	if _, ok = gd[k]; !ok {
+		return nil
+	}
+	od=gd[k].d
+	delete(gd,k)
 	return od
 }
 
@@ -172,6 +178,7 @@ func (stone *Drystone) processClientDeleteRequest(w *http.ResponseWriter, r *htt
 
 	od:=stone.delLocal(g, k)
 	
+
 	if od!=nil{
 		(*w).WriteHeader(http.StatusOK)
 		(*w).Write(od)
@@ -210,6 +217,14 @@ func (c *ClientHttp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		if r.URL.Path == "/data" {
 			c.stone.processClientGetRequest(&w, r)
+			return
+		}
+
+	}
+
+	if r.Method == "DELETE" {
+		if r.URL.Path == "/data" {
+			c.stone.processClientDeleteRequest(&w, r)
 			return
 		}
 
