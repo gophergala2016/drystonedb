@@ -2,24 +2,33 @@ package drystonedb
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/url"
 	"strings"
+	"sync"
 )
 
 type Drystone struct {
-	CURL string
-	SURL string
-	nm   string
-	data map[string][]byte
+	CURL  string
+	SURL  string
+	nm    string
+	data  map[string]map[string]DataStone
+	daMux sync.Mutex // one mux for all, not perfect but...
+}
+
+type DataStone struct {
+	t uint32 // time
+	v uint32 // version
+	d []byte // data
 }
 
 func NewDrystone(curl *string, surl *string, hosts *string) (stone *Drystone) {
 	stone = &Drystone{
 		CURL: *curl,
 		SURL: *surl,
-		data: make(map[string][]byte),
+		data: make(map[string]map[string]DataStone),
 	}
 
 	stone.name()
@@ -31,14 +40,14 @@ func NewDrystone(curl *string, surl *string, hosts *string) (stone *Drystone) {
 
 func (stone *Drystone) name() string {
 	cs := strings.Split(stone.CURL, ":")
-	if len(cs) != 2 {
+	if len(cs) < 2 {
 		panic(fmt.Sprintf("wrong client url %s", stone.CURL))
 	}
-	ss := strings.Split(stone.CURL, ":")
-	if len(ss) != 2 {
+	ss := strings.Split(stone.SURL, ":")
+	if len(ss) < 2 {
 		panic(fmt.Sprintf("wrong stone url %s", stone.SURL))
 	}
-	stone.nm = fmt.Sprintf("%s:[%s,%s]", cs[0], cs[1], ss[1])
+	stone.nm = fmt.Sprintf("%s:[%s,%s]", cs[len(cs)-2], cs[len(cs)-1], ss[len(ss)-1])
 
 	return stone.nm
 }
@@ -51,12 +60,66 @@ func (stone *Drystone) run() {
 
 }
 
+func (stone *Drystone) add(g, k string, d []byte) {
+	stone.daMux.Lock()
+	defer stone.daMux.Unlock()
+}
+
+func (stone *Drystone) get(g, k string) []byte {
+	stone.daMux.Lock()
+	defer stone.daMux.Unlock()
+	return nil
+}
+
+func (stone *Drystone) del(g, k string) {
+	stone.daMux.Lock()
+	defer stone.daMux.Unlock()
+}
+
+// stone k/v interface
+//
+// curl -v -XPOST -d '123456789abcdef!' 'http://localhost:8080/data?g=test&k=key1
+// curl -v -XGET 'http://localhost:8080/data?g=test&k=key1'
+// curl -v -XDELETE 'http://localhost:8080/data/mydata?g=test&k=key1'
+//
+
+func getParamsFromRequest(r *http.Request) (g, k string) {
+	g = r.URL.Query().Get("g")
+	k = r.URL.Query().Get("k")
+	return g, k
+}
+
 func (stone *Drystone) processClientPostRequest(w *http.ResponseWriter, r *http.Request) {
-	log.Printf("Drystone processClientPostRequest %s", stone.nm)
+	g, k := getParamsFromRequest(r)
+	if g == "" || k == "" {
+		http.Error(*w, "bad reguest", http.StatusBadRequest)
+		return
+	}
+	d, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(*w, fmt.Sprintf("bad reguest, error %v", err), http.StatusBadRequest)
+		return
+	}
+
+	stone.add(g, k, d)
+
+	log.Printf("Clientstone post [%s] g=%s k=%s", stone.nm, g, k)
+	(*w).WriteHeader(http.StatusOK)
+	(*w).Write([]byte(fmt.Sprintf("boom!!! [%s] g=%s k=%s\n", stone.nm, g, k)))
 }
 
 func (stone *Drystone) processClientGetRequest(w *http.ResponseWriter, r *http.Request) {
-	log.Printf("Drystone processClientGetRequest %s", stone.nm)
+	g, k := getParamsFromRequest(r)
+	log.Printf("Clientstone get [%s] g=%s k=%s", stone.nm, g, k)
+	(*w).WriteHeader(http.StatusOK)
+	(*w).Write([]byte(fmt.Sprintf("boom!!! [%s] g=%s k=%s\n", stone.nm, g, k)))
+}
+
+func (stone *Drystone) processClientDeleteRequest(w *http.ResponseWriter, r *http.Request) {
+	g, k := getParamsFromRequest(r)
+	log.Printf("Clientstone delete [%s] g=%s k=%s", stone.nm, g, k)
+	(*w).WriteHeader(http.StatusOK)
+	(*w).Write([]byte(fmt.Sprintf("boom!!! [%s] g=%s k=%s\n", stone.nm, g, k)))
 }
 
 func (stone *Drystone) processStonePostRequest(w *http.ResponseWriter, r *http.Request) {
@@ -67,7 +130,9 @@ func (stone *Drystone) processStoneGetRequest(w *http.ResponseWriter, r *http.Re
 	log.Printf("Drystone processStoneGetRequest %s", stone.nm)
 }
 
-// serve client http requests
+// boom
+// serve client nodes http requests
+// http2 is cool, but later
 
 type ClientHttp struct {
 	stone *Drystone
@@ -96,6 +161,7 @@ func (c *ClientHttp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (stone *Drystone) serveClientHTTP() {
+	log.Printf("stone.serveClientHTTP %s", stone.CURL)
 	err := http.ListenAndServe(stone.CURL, &ClientHttp{stone: stone})
 	if err != nil {
 		log.Fatal("stone.serveClientHTTP error", err)
@@ -133,6 +199,7 @@ func (e *DrystoneHttp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (stone *Drystone) serveStoneHTTP() {
+	log.Printf("stone.serveStoneHTTP %s", stone.SURL)
 	err := http.ListenAndServe(stone.SURL, &DrystoneHttp{stone: stone})
 	if err != nil {
 		log.Fatal("stone.serveStoneHTTP error", err)

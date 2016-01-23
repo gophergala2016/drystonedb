@@ -1,7 +1,7 @@
 package drystonedb
 
 import (
-	_"bytes"
+	_ "bytes"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"net/http"
 )
-
 
 func ReadJSON(r *http.Request, v interface{}) ([]byte, error) {
 	content, err := ioutil.ReadAll(r.Body)
@@ -32,4 +31,3 @@ func NewUUID() (string, error) {
 	uuid[6] = uuid[6]&^0xf0 | 0x40
 	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:]), nil
 }
-
