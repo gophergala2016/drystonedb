@@ -13,9 +13,10 @@ type Drystone struct {
 	data map[string][]byte
 }
 
-func NewDrystone()(node *Drystone){
+func NewDrystone(url *string,hosts *string)(stone *Drystone){
 	log.Println("NewDrystone")
 	stone = &Drystone{
+		URL: *url,
 		data:	make(map[string][]byte),
 	}
 
@@ -32,8 +33,7 @@ type DrystoneHttp struct {
 func (stone *Drystone) run() {
 	log.Printf("Drystone run %s",stone.URL)
 
-	go worker.serveWorkerResultsHTTP()
-
+	go stone.serveStoneHTTP()
 }
 
 
@@ -43,9 +43,9 @@ func (e *DrystoneHttp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "bad reguest", http.StatusBadRequest)
 }
 
-func (stone *Drystone) serveWorkerResultsHTTP() {
+func (stone *Drystone) serveStoneHTTP() {
 	err := http.ListenAndServe(stone.URL, &DrystoneHttp{stone: stone})
 	if err != nil {
-		log.Fatal("node.serveWorkerResultsHTTP error", err)
+		log.Fatal("node.serveStoneHTTP error", err)
 	}
 }

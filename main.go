@@ -8,9 +8,12 @@ import(
 func main() {
 
 	StoneHosts := flag.String("stones", "http://127.0.0.1:12379,http://127.0.0.1:22379,http://127.0.0.1:32379", "hosts list host0:port0,host1:port1,..")
+	Me := flag.String("me", "http://127.0.0.1:12379", "host host:port")
 
 	flag.Parse()
 
-    stone := dsdb.NewDrystone()	
+    stone := dsdb.NewDrystone(Me,StoneHosts)
+
+    var _ = stone	
 
 }
