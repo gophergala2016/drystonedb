@@ -11,11 +11,17 @@ import (
 	"time"
 )
 
+const (
+	StoneHeartBeatTimeInterval = time.Second * 5
+)
+
 type Drystone struct {
-	CURL  string
-	SURL  string
-	nm    string
-	data  map[string]map[string]*DataStone
+	CURL  string // client url
+	SURL  string // internal url
+	URLS  []string // urls list
+	nm    string // name
+	HeartBeatQuit chan bool
+	data  map[string]map[string]*DataStone // data storage
 	daMux sync.Mutex // one mux for all, not perfect but...
 }
 
@@ -25,10 +31,12 @@ type DataStone struct {
 	d []byte // data
 }
 
-func NewDrystone(curl *string, surl *string, hosts *string) (stone *Drystone) {
+func NewDrystone(curl *string, surl *string, urls *string) (stone *Drystone) {
 	stone = &Drystone{
 		CURL: *curl,
 		SURL: *surl,
+		URLS: strings.Split(*urls,","),
+		HeartBeatQuit: make(chan bool),
 		data: make(map[string]map[string]*DataStone),
 	}
 
@@ -60,6 +68,24 @@ func (stone *Drystone) run() {
 	go stone.serveStoneHTTP()
 
 }
+
+func (stone *Drystone) heartBeat() {
+	log.Printf("Drystone heartBeat [%s]", stone.nm)
+	tick := time.Tick(StoneHeartBeatTimeInterval)
+	var counter uint32 = 0
+	for {
+		select {
+		case <-stone.HeartBeatQuit:
+			log.Printf("stone.heartBeat exited by HeartBeatQuit %s %d",stone.nm, counter)
+			return
+		case <-tick:
+			log.Printf("stone.heartBeat tick %s %d", stone.nm, counter)
+			counter++
+		}
+	}
+
+}
+
 
 func (stone *Drystone) addLocal(g, k string, d []byte) []byte{
 	stone.daMux.Lock()

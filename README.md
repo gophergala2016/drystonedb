@@ -6,15 +6,15 @@ Distributed in memory key/value storage with custom consensus algorithm
 
 Solve [CAP](https://en.wikipedia.org/wiki/CAP_theorem) theorem issues  
 
-## #Consistency
+### Consistency
 
-Custom consensus algorithm, with version control
+Custom consensus algorithm with version control
 
-## #Availability
+### Availability
 
-Data available if at least one node available
+Data available if at least one node (stone) available
 
-## #Partion tolerance
+### Partion tolerance
 
 All nodes (stones) equal, no single point of failure (SPF), client talk with different partitioned nodes
 
