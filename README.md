@@ -28,11 +28,9 @@ curl -XGET -v 'http://127.0.0.1:12379/data?g=boom&k=cambala'
 curl -XDELETE -v 'http://127.0.0.1:12379/data?g=boom&k=cambala'
 
 ### build
-go build stone.go
+./build.sh
 
 ### start local
-
-Configure Procfile  
 foreman start
 
 
