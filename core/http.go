@@ -204,6 +204,30 @@ func (stone *Drystone) delStoneHttp(u, g, k string) (uint32, []byte) {
 	return v, d
 }
 
+
+// stone url interface
+//
+// curl -XPOST -v 'http://127.0.0.1:12379/urls' -d "127.0.0.1:8009,127.0.0.1:8010"
+// curl -XGET -v 'http://127.0.0.1:12379/urls'
+// curl -XDELETE -v 'http://127.0.0.1:12379/urls' -d "127.0.0.1:8009,127.0.0.1:8010"
+//
+
+func (stone *Drystone) processUrlPostRequest(w *http.ResponseWriter, r *http.Request) {
+	d, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(*w, fmt.Sprintf("bad reguest, error %v", err), http.StatusBadRequest)
+		return
+	}
+	urls:=string(d)
+	stone.addWURLs(&urls)
+	(*w).WriteHeader(http.StatusOK)
+}
+
+func (stone *Drystone) processUrlGetRequest(w *http.ResponseWriter, r *http.Request) {
+	(*w).WriteHeader(http.StatusOK)
+	(*w).Write([]byte(stone.getWURLs()))
+}
+
 // stone k/v interface
 //
 // curl -XPOST -v 'http://127.0.0.1:12379/data?g=boom&k=cambala' -d "cobra"
@@ -368,11 +392,20 @@ func (e *DrystoneHttp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if r.URL.Path == "/urls" {
+			e.stone.processUrlPostRequest(&w, r)
+			return
+		}
+
 	}
 
 	if r.Method == "GET" {
 		if r.URL.Path == "/stone" {
 			e.stone.processGetRequest(&w, r, true)
+			return
+		}
+		if r.URL.Path == "/urls" {
+			e.stone.processUrlGetRequest(&w, r)
 			return
 		}
 

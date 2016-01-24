@@ -26,11 +26,17 @@ const (
 type Drystone struct {
 	CURL          string   // client url
 	SURL          string   // stone url
-	WURLS         []string // wall urls list
+	//WURLS         []string // wall urls list
+	WURLS         map[string]*UrlStone
+	wuMux         sync.Mutex
 	nm            string   // name
 	HeartBeatQuit chan bool
 	data          map[string]map[string]*DataStone // data storage
 	daMux         sync.Mutex                       // one mux for all, not perfect but...
+}
+
+type UrlStone struct{
+	ec uint32 // error counter
 }
 
 type DataStone struct {
@@ -44,16 +50,59 @@ func NewDrystone(curl *string, surl *string, urls *string) (stone *Drystone) {
 	stone = &Drystone{
 		CURL:          *curl,
 		SURL:          *surl,
-		WURLS:         strings.Split(*urls, ","),
+		//WURLS:         strings.Split(*urls, ","),
+		WURLS:         make(map[string]*UrlStone),
 		HeartBeatQuit: make(chan bool),
 		data:          make(map[string]map[string]*DataStone),
 	}
+
+//	for _,u:=range strings.Split(*urls, ","){
+//		stone.WURLS[u]=&UrlStone{ec:0}
+//	}
+
+	stone.addWURLs(urls)
 
 	stone.buildName()
 
 	go stone.run()
 
 	return stone
+}
+
+func (stone *Drystone) addWURLs(urls *string) {
+	stone.wuMux.Lock()
+	defer stone.wuMux.Unlock()
+	for _,u:=range strings.Split(*urls, ","){
+		if _,ok:=stone.WURLS[u]; ok{
+			continue
+		} 
+		stone.WURLS[u]=&UrlStone{ec:0}
+	}
+}
+
+func (stone *Drystone) delWURLs(urls *string) {
+	stone.wuMux.Lock()
+	defer stone.wuMux.Unlock()
+	for _,u:=range strings.Split(*urls, ","){
+		delete(stone.WURLS,u)
+	}
+}
+
+
+func (stone *Drystone) getWURLs()string {
+	stone.wuMux.Lock()
+	defer stone.wuMux.Unlock()
+	s:=""
+	i:=0
+	for u,_:=range stone.WURLS{
+		if i==0{
+			s=u
+			i++
+		} else{
+			s=s+","+u
+		}
+	}
+	return s
 }
 
 func (stone *Drystone) buildName() string {
@@ -82,11 +131,11 @@ func (stone *Drystone) run() {
 
 // send other known stones heartbeat
 func (stone *Drystone) updateWallUrls() {
-	for _, u := range stone.WURLS {
-		if u != stone.SURL {
-			//stone.updateWallUrlHttp(u, stone.SURL)
-		}
-	}
+	//for _, u := range stone.WURLS {
+	//	if u != stone.SURL {
+	//		//stone.updateWallUrlHttp(u, stone.SURL)
+	//	}
+	//}
 }
 
 func (stone *Drystone) heartBeat() {
@@ -121,12 +170,17 @@ const (
 
 func (stone *Drystone) doGlobal(what int, g, k string, d []byte) (uint32, []byte) {
 
-	var urls []*string
+	var urls []string
 
 	// select urls, all or less
-	for i, _ := range stone.WURLS {
-		urls = append(urls, &stone.WURLS[i])
+	//for i, _ := range stone.WURLS {
+	//	urls = append(urls, &stone.WURLS[i])
+	//}
+	stone.wuMux.Lock()
+	for url, _ := range stone.WURLS {
+		urls = append(urls, url)
 	}
+	stone.wuMux.Unlock()
 
 	var c = len(urls)
 	var wg sync.WaitGroup
@@ -145,7 +199,7 @@ func (stone *Drystone) doGlobal(what int, g, k string, d []byte) (uint32, []byte
 				ov[i], od[i] = stone.delStoneHttp(*u, g, k)
 			}
 			wg.Done()
-		}(i, u)
+		}(i, &u)
 	}
 
 	wg.Wait()
