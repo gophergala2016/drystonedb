@@ -33,4 +33,7 @@ curl -XDELETE -v 'http://127.0.0.1:12379/data?g=boom&k=cambala'
 ### start local
 foreman start
 
-
+###### implementation
+Data write (http post) to random k nodes, k<=n, n - all nodes (scale - ok)  
+Data read  (http get) from n - all nodes (scale -not ok)  
+Data delete(http delete) from n - all nodes (scale -not ok)  

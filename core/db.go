@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 	//"strconv"
+	"math/rand"
 )
 
 const (
@@ -24,18 +25,19 @@ const (
 //
 
 type Drystone struct {
-	CURL          string   // client url
-	SURL          string   // stone url
+	CURL string // client url
+	SURL string // stone url
 	//WURLS         []string // wall urls list
 	WURLS         map[string]*UrlStone
 	wuMux         sync.Mutex
-	nm            string   // name
+	nm            string // name
 	HeartBeatQuit chan bool
 	data          map[string]map[string]*DataStone // data storage
 	daMux         sync.Mutex                       // one mux for all, not perfect but...
+	AddUrlsLimit  int 
 }
 
-type UrlStone struct{
+type UrlStone struct {
 	ec uint32 // error counter
 }
 
@@ -48,17 +50,13 @@ type DataStone struct {
 
 func NewDrystone(curl *string, surl *string, urls *string) (stone *Drystone) {
 	stone = &Drystone{
-		CURL:          *curl,
-		SURL:          *surl,
-		//WURLS:         strings.Split(*urls, ","),
+		CURL: *curl,
+		SURL: *surl,
 		WURLS:         make(map[string]*UrlStone),
 		HeartBeatQuit: make(chan bool),
 		data:          make(map[string]map[string]*DataStone),
+		AddUrlsLimit:  3,
 	}
-
-//	for _,u:=range strings.Split(*urls, ","){
-//		stone.WURLS[u]=&UrlStone{ec:0}
-//	}
 
 	stone.addWURLs(urls)
 
@@ -72,34 +70,33 @@ func NewDrystone(curl *string, surl *string, urls *string) (stone *Drystone) {
 func (stone *Drystone) addWURLs(urls *string) {
 	stone.wuMux.Lock()
 	defer stone.wuMux.Unlock()
-	for _,u:=range strings.Split(*urls, ","){
-		if _,ok:=stone.WURLS[u]; ok{
+	for _, u := range strings.Split(*urls, ",") {
+		if _, ok := stone.WURLS[u]; ok {
 			continue
-		} 
-		stone.WURLS[u]=&UrlStone{ec:0}
+		}
+		stone.WURLS[u] = &UrlStone{ec: 0}
 	}
 }
 
 func (stone *Drystone) delWURLs(urls *string) {
 	stone.wuMux.Lock()
 	defer stone.wuMux.Unlock()
-	for _,u:=range strings.Split(*urls, ","){
-		delete(stone.WURLS,u)
+	for _, u := range strings.Split(*urls, ",") {
+		delete(stone.WURLS, u)
 	}
 }
 
-
-func (stone *Drystone) getWURLs()string {
+func (stone *Drystone) getWURLs() string {
 	stone.wuMux.Lock()
 	defer stone.wuMux.Unlock()
-	s:=""
-	i:=0
-	for u,_:=range stone.WURLS{
-		if i==0{
-			s=u
+	s := ""
+	i := 0
+	for u, _ := range stone.WURLS {
+		if i == 0 {
+			s = u
 			i++
-		} else{
-			s=s+","+u
+		} else {
+			s = s + "," + u
 		}
 	}
 	return s
@@ -131,11 +128,6 @@ func (stone *Drystone) run() {
 
 // send other known stones heartbeat
 func (stone *Drystone) updateWallUrls() {
-	//for _, u := range stone.WURLS {
-	//	if u != stone.SURL {
-	//		//stone.updateWallUrlHttp(u, stone.SURL)
-	//	}
-	//}
 }
 
 func (stone *Drystone) heartBeat() {
@@ -168,19 +160,51 @@ const (
 	doDel = 3
 )
 
+func (stone *Drystone) doPrepareUrls(what int,urls *[]string){
+	stone.wuMux.Lock()
+	defer 	stone.wuMux.Unlock()
+	if what == doAdd && len(stone.WURLS)>stone.AddUrlsLimit{
+		nums:=make([]int,len(stone.WURLS))
+		for i:=0;i<len(stone.WURLS);i++{
+			nums[i]=i
+		}
+		nm:=make(map[int]struct{})
+		for i:=0;i<stone.AddUrlsLimit;i++{
+			ri:=rand.Intn(len(nums))
+			nm[ri]=struct{}{}
+			nums[ri]=nums[len(nums)-1]
+			nums=nums[:len(nums)-1]
+		}
+		ix:=0
+		for url, _ := range stone.WURLS  {
+			if _,ok:=nm[ix];ok{
+				*urls = append(*urls, url)
+			}
+			ix++
+		}	
+
+	} else {
+		// del or get prepare all
+		for url, _ := range stone.WURLS {
+			*urls = append(*urls, url)
+		}
+	}
+}
+
+
 func (stone *Drystone) doGlobal(what int, g, k string, d []byte) (uint32, []byte) {
 
 	var urls []string
 
-	// select urls, all or less
-	//for i, _ := range stone.WURLS {
-	//	urls = append(urls, &stone.WURLS[i])
-	//}
-	stone.wuMux.Lock()
-	for url, _ := range stone.WURLS {
-		urls = append(urls, url)
-	}
-	stone.wuMux.Unlock()
+	stone.doPrepareUrls(what,&urls)
+
+	log.Printf("stone.doGlobal urls %v",urls)
+
+//	stone.wuMux.Lock()
+//	for url, _ := range stone.WURLS {
+//		urls = append(urls, url)
+//	}
+//	stone.wuMux.Unlock()
 
 	var c = len(urls)
 	var wg sync.WaitGroup
@@ -189,23 +213,27 @@ func (stone *Drystone) doGlobal(what int, g, k string, d []byte) (uint32, []byte
 	var od []DataSlice = make([]DataSlice, c)
 	var ov []uint32 = make([]uint32, c)
 	for i, u := range urls {
-		go func(i int, u *string) {
+		go func(i int, u string) {
 			switch what {
 			case doAdd:
-				ov[i], od[i] = stone.addStoneHttp(*u, g, k, d)
+				ov[i], od[i] = stone.addStoneHttp(u, g, k, d)
 			case doGet:
-				ov[i], od[i] = stone.getStoneHttp(*u, g, k)
+				ov[i], od[i] = stone.getStoneHttp(u, g, k)
 			case doDel:
-				ov[i], od[i] = stone.delStoneHttp(*u, g, k)
+				ov[i], od[i] = stone.delStoneHttp(u, g, k)
 			}
 			wg.Done()
-		}(i, &u)
+		}(i, u)
 	}
 
 	wg.Wait()
 
 	return FindConsensus(ov, od)
 }
+
+//
+// add data
+//
 
 func (stone *Drystone) addGlobal(g, k string, d []byte) (uint32, []byte) {
 	return stone.doGlobal(doAdd, g, k, d)
@@ -221,14 +249,14 @@ func (stone *Drystone) addLocal(g, k string, d []byte) (uint32, []byte) {
 		stone.data[g] = make(map[string]*DataStone)
 	} else {
 		if ds, ok = stone.data[g][k]; ok {
-			v = ds.v+1
-		}		
+			v = ds.v + 1
+		}
 	}
 	stone.data[g][k] = &DataStone{t: uint32(time.Now().Unix()), v: v, d: d, h: Hash(d)}
-	if ds!=nil{
+	if ds != nil {
 		return ds.v, ds.d
 	}
-	return 0,nil
+	return 0, nil
 }
 
 //

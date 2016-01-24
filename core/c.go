@@ -2,7 +2,7 @@ package drystonedb
 
 import (
 	"fmt"
-	_"log"
+	_ "log"
 )
 
 //
@@ -24,8 +24,8 @@ func FindConsensus(ov []uint32, od []DataSlice) (uint32, []byte) {
 		}
 	}
 
-	if vmax == 0{
-		return 0,nil
+	if vmax == 0 {
+		return 0, nil
 	}
 	//log.Printf("FindConsensus vmax=%d,imax=%d", vmax, imax)
 

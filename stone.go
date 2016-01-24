@@ -1,6 +1,6 @@
 package main
 
-import(
+import (
 	"flag"
 	dsdb "github.com/gophergala2016/drystonedb/core"
 )
@@ -13,10 +13,10 @@ func main() {
 
 	flag.Parse()
 
-    stone := dsdb.NewDrystone(MeClient,MeStone,StoneHosts)
+	stone := dsdb.NewDrystone(MeClient, MeStone, StoneHosts)
 
-    var _ = stone	
-    
-    c:=make(chan bool)
-    <-c
+	var _ = stone
+
+	c := make(chan bool)
+	<-c
 }

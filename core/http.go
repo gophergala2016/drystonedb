@@ -76,7 +76,7 @@ func (stone *Drystone) updateWallUrlHttp(u string){
 }
 */
 
-func getDrystoneVersionHeader(resp *http.Response)uint32{
+func getDrystoneVersionHeader(resp *http.Response) uint32 {
 
 	var ok bool
 	var s []string
@@ -84,8 +84,8 @@ func getDrystoneVersionHeader(resp *http.Response)uint32{
 	if s, ok = resp.Header[DrystoneVersionHeader]; ok {
 		if len(s) > 0 {
 			u64, err := strconv.ParseUint(s[0], 10, 32)
-			if err!=nil{
-				log.Printf("resp.Header ParseUint error %v",err)
+			if err != nil {
+				log.Printf("resp.Header ParseUint error %v", err)
 				return 0
 			}
 			v = uint32(u64)
@@ -117,12 +117,12 @@ func (stone *Drystone) addStoneHttp(u, g, k string, d []byte) (uint32, []byte) {
 		return 0, nil
 	}
 
-	if resp.StatusCode!=http.StatusOK{
-//		log.Printf("stone.addStoneHttp client.Do url %s resp.StatusCode %d", url, resp.StatusCode)
-		return 0, nil	
+	if resp.StatusCode != http.StatusOK {
+		//		log.Printf("stone.addStoneHttp client.Do url %s resp.StatusCode %d", url, resp.StatusCode)
+		return 0, nil
 	}
 
-	v:=getDrystoneVersionHeader(resp)
+	v := getDrystoneVersionHeader(resp)
 
 	od, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -149,12 +149,12 @@ func (stone *Drystone) getStoneHttp(u, g, k string) (uint32, []byte) {
 		return 0, nil
 	}
 
-	if resp.StatusCode!=http.StatusOK{
+	if resp.StatusCode != http.StatusOK {
 		//log.Printf("stone.getStoneHttp url %s resp.StatusCode %d", url, resp.StatusCode)
-		return 0, nil	
+		return 0, nil
 	}
 
-	v:=getDrystoneVersionHeader(resp)
+	v := getDrystoneVersionHeader(resp)
 
 	d, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -188,12 +188,11 @@ func (stone *Drystone) delStoneHttp(u, g, k string) (uint32, []byte) {
 		return 0, nil
 	}
 
-	if resp.StatusCode!=http.StatusOK{
-		return 0, nil	
+	if resp.StatusCode != http.StatusOK {
+		return 0, nil
 	}
 
-
-	v:=getDrystoneVersionHeader(resp)
+	v := getDrystoneVersionHeader(resp)
 
 	d, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -203,7 +202,6 @@ func (stone *Drystone) delStoneHttp(u, g, k string) (uint32, []byte) {
 
 	return v, d
 }
-
 
 // stone url interface
 //
@@ -218,7 +216,7 @@ func (stone *Drystone) processUrlPostRequest(w *http.ResponseWriter, r *http.Req
 		http.Error(*w, fmt.Sprintf("bad reguest, error %v", err), http.StatusBadRequest)
 		return
 	}
-	urls:=string(d)
+	urls := string(d)
 	stone.addWURLs(&urls)
 	(*w).WriteHeader(http.StatusOK)
 }
